@@ -34,6 +34,7 @@ Sphere spheres[2];
 uniform uvec2 uResolution;
 uniform sampler2D uPrevFrame;
 uniform uint renderedFrames;
+uniform vec3 cameraPosition;
 
 float RandomValue(inout uint rngState) {
     rngState = rngState * 747796405u + 2891336453u;
@@ -130,7 +131,7 @@ vec3 traceRay(Ray ray, inout uint rngState) {
 void main() {
     uvec2 pixelCoord = uvec2(uv * uResolution);
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 719393u;
-    Ray ray = Ray(vec3(0.0, 0.0, -5.0), normalize(direction));
+    Ray ray = Ray(cameraPosition, normalize(direction) / uResolution.x);
     Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(0, 1, 0), vec3(0), 0, 0));
     Sphere sphere1 = Sphere(vec3(0.0, 2.0, -1.0), 1.0, Material(vec3(0, 0, 1), vec3(0), 0, 1));
     spheres[0] = sphere0;

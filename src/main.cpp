@@ -1,5 +1,9 @@
-﻿#include "Window.h"
+﻿#include <chrono>
+
+#include "Camera.h"
+#include "Window.h"
 #include "Shader.h"
+#include "glm/gtc/type_ptr.inl"
 using raytracer::Window;
 using raytracer::Shader;
 
@@ -11,6 +15,8 @@ int frameCount = 0;
 GLuint fbo;
 GLuint accumTextures[2];
 GLuint quadVAO = 0;
+
+raytracer::Camera camera = raytracer::Camera(10, 1);
 
 void resetAccumulation() {
     frameCount = 0;
@@ -45,6 +51,9 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     resetAccumulation();
 }
 
+double deltaTime = 0.0f;
+std::chrono::time_point<std::chrono::system_clock> startFrame;
+
 int main() {
     Window window(800, 600);
     glfwSetFramebufferSizeCallback(window.getWindow(), windowSizeCallback);
@@ -54,7 +63,12 @@ int main() {
     initAccum();
 
     while (!glfwWindowShouldClose(window.getWindow())) {
+        startFrame = std::chrono::high_resolution_clock::now();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        camera.update(deltaTime, window.getWindow());
+        if (camera.hasMoved)
+            resetAccumulation();
 
         int readIdx  = frameCount % 2;
         int writeIdx = (frameCount + 1) % 2;
@@ -66,7 +80,9 @@ int main() {
 
         defaultShader->use();
         defaultShader->setUInt("renderedFrames", frameCount);
-        defaultShader->setInt("maxBounces", 3);
+        defaultShader->setInt("maxBounces", 4);
+        //defaultShader->setMatrix4x4("viewMatrix", glm::value_ptr(camera.getViewMatrix()));
+        defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
         defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height);
 
@@ -94,6 +110,7 @@ int main() {
         glfwSwapBuffers(window.getWindow());
         glfwPollEvents();
         frameCount++;
+        deltaTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - startFrame).count();
     }
 }
 
