@@ -69,6 +69,11 @@ namespace raytracer {
         glUniformMatrix4fv(location, 1, GL_FALSE, matrix);
     }
 
+    void Shader::setMatrix3x3(const char *name, const float *matrix) {
+        const int location = getUniformLocation(name);
+        glUniformMatrix3fv(location, 1, GL_FALSE, matrix);
+    }
+
     void Shader::setVector4(const char* name, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     {
         const int location = getUniformLocation(name);

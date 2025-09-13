@@ -28,6 +28,7 @@ namespace raytracer {
         glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
         glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
         glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
         width = fullscreen ? mode->width : width;
         height = fullscreen ? mode->height : height;
         window = glfwCreateWindow(width, height, title.c_str(), fullscreen ? monitor : nullptr, nullptr);
@@ -40,6 +41,10 @@ namespace raytracer {
         DEBUG("Successfully Created Window.");
 
         glfwSetKeyCallback(window, keyCallback);
+
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        if (glfwRawMouseMotionSupported())
+            glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
         DEBUG("Successfully Initialized GLFW.");
 
         glfwMakeContextCurrent(window);

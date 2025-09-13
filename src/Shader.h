@@ -12,6 +12,7 @@ namespace raytracer {
         Shader(): shaderID(0) { }
 
         void setMatrix4x4(const char* name, const float* matrix);
+        void setMatrix3x3(const char* name, const float* matrix);
         void setVector4(const char* name, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
         void setVector3(const char* name, GLfloat x, GLfloat y, GLfloat z);
         void setVector2(const char* name, GLfloat x, GLfloat y);

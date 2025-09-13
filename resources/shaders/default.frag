@@ -30,11 +30,13 @@ struct HitInfo {
 in vec2 uv;
 in vec3 direction;
 
-Sphere spheres[2];
+Sphere spheres[3];
 uniform uvec2 uResolution;
 uniform sampler2D uPrevFrame;
+uniform float uFocalLength;
 uniform uint renderedFrames;
 uniform vec3 cameraPosition;
+uniform mat3 cameraRotation;
 
 float RandomValue(inout uint rngState) {
     rngState = rngState * 747796405u + 2891336453u;
@@ -86,7 +88,7 @@ HitInfo calculateRayIntersection(Ray ray) {
     closestHit.didHit = false;
     closestHit.distance = 1.0 / 0.0;
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         Sphere sphere = spheres[i];
         HitInfo hitInfo = intersectRaySphere(ray, sphere);
         if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
@@ -127,15 +129,17 @@ vec3 traceRay(Ray ray, inout uint rngState) {
     return inLight;
 }
 
-
 void main() {
     uvec2 pixelCoord = uvec2(uv * uResolution);
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 719393u;
-    Ray ray = Ray(cameraPosition, normalize(direction) / uResolution.x);
+    vec3 dir = cameraRotation * normalize(vec3(uv * uResolution - uResolution * 0.5, uFocalLength));
+    Ray ray = Ray(cameraPosition, dir);
     Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(0, 1, 0), vec3(0), 0, 0));
-    Sphere sphere1 = Sphere(vec3(0.0, 2.0, -1.0), 1.0, Material(vec3(0, 0, 1), vec3(0), 0, 1));
+    Sphere sphere1 = Sphere(vec3(0.0, 2.0, -1.0), 1.0, Material(vec3(0, 0, 1), vec3(1), 6, 0));
+    Sphere sphere2 = Sphere(vec3(0.0, -20.0, -1.0), 20.0, Material(vec3(0, 0, 1), vec3(0), 0, 0));
     spheres[0] = sphere0;
     spheres[1] = sphere1;
+    spheres[2] = sphere2;
 
     vec3 prev = texture(uPrevFrame, uv).rgb;
     vec3 curr = traceRay(ray, rngState);

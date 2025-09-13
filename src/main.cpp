@@ -16,7 +16,7 @@ GLuint fbo;
 GLuint accumTextures[2];
 GLuint quadVAO = 0;
 
-raytracer::Camera camera = raytracer::Camera(10, 1);
+raytracer::Camera camera = raytracer::Camera(10, 0.08f);
 
 void resetAccumulation() {
     frameCount = 0;
@@ -81,10 +81,11 @@ int main() {
         defaultShader->use();
         defaultShader->setUInt("renderedFrames", frameCount);
         defaultShader->setInt("maxBounces", 4);
-        //defaultShader->setMatrix4x4("viewMatrix", glm::value_ptr(camera.getViewMatrix()));
+        defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()));
         defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
 
         defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height);
+        defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height));
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, accumTextures[readIdx]);

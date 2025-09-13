@@ -10,5 +10,4 @@ void main()
 {
     gl_Position = vec4(aPos, 0.0, 1.0);
     uv = TexCoords;
-    direction = normalize(vec3(uResolution * uv - uResolution / 2u, uResolution.y / 2u));
 }
