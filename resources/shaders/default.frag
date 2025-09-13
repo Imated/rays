@@ -9,7 +9,7 @@ struct Material {
 };
 
 struct Ray {
-    vec3 position;
+    vec3 origin;
     vec3 direction;
 };
 
@@ -21,7 +21,7 @@ struct Sphere {
 
 struct HitInfo {
     bool didHit;
-    float t; // t?  the multiple of rayDir (basically distance in units) hm
+    float distance; // t?  the multiple of rayDir (basically distance in units) hm
     vec3 hitPos;
     vec3 normal;
     Material material;
@@ -58,7 +58,7 @@ vec3 RandomHemisphereDirection(vec3 normal, inout uint rngState) {
 }
 
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
-    vec3 oc = sphere.pos - ray.position;
+    vec3 oc = sphere.pos - ray.origin;
     float a = dot(ray.direction, ray.direction);
     float b = -2.0 * dot(ray.direction, oc);
     float c = dot(oc, oc) - sphere.radius*sphere.radius;
@@ -66,18 +66,13 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
 
     HitInfo hitInfo;
     hitInfo.didHit = false;
-    hitInfo.t = 1e20;
 
     if (discriminant >= 0.0) {
-        float t0 = (-b - sqrt(discriminant)) / (2.0 * a);
-        float t1 = (-b + sqrt(discriminant)) / (2.0 * a);
+        hitInfo.distance = (-b - sqrt(discriminant)) / (2.0 * a);
 
-        hitInfo.t = t0;
-        if (hitInfo.t <= 0.0) hitInfo.t = t1;
-
-        if (hitInfo.t > 0.0) {
+        if (hitInfo.distance > 0.0) {
             hitInfo.didHit = true;
-            hitInfo.hitPos = ray.position + ray.direction * hitInfo.t;
+            hitInfo.hitPos = ray.origin + ray.direction * hitInfo.distance;
             hitInfo.normal = normalize(hitInfo.hitPos - sphere.pos);
             hitInfo.material = sphere.material;
         }
@@ -88,12 +83,12 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
 HitInfo calculateRayIntersection(Ray ray) {
     HitInfo closestHit;
     closestHit.didHit = false;
-    closestHit.t = 1.0 / 0.0;
+    closestHit.distance = 1.0 / 0.0;
 
     for (int i = 0; i < 2; i++) {
         Sphere sphere = spheres[i];
         HitInfo hitInfo = intersectRaySphere(ray, sphere);
-        if (hitInfo.didHit && hitInfo.t < closestHit.t) {
+        if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
             closestHit = hitInfo;
         }
     }
@@ -112,7 +107,7 @@ vec3 traceRay(Ray ray, inout uint rngState) {
     for(int i = 0; i <= maxBounces; i++) {
         HitInfo info = calculateRayIntersection(ray);
         if(info.didHit) {
-            ray.position = info.hitPos;
+            ray.origin = info.hitPos;
             Material material = info.material;
             vec3 diffuseDir = normalize(info.normal + RandomDirection(rngState));
             vec3 specularDir = reflect(normalize(ray.direction), info.normal);
