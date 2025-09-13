@@ -5,6 +5,7 @@ struct Material {
     vec3 color;
     vec3 emissiveColor;
     float emissiveStrength;
+    float smoothness;
 };
 
 struct Ray {
@@ -112,9 +113,11 @@ vec3 traceRay(Ray ray, inout uint rngState) {
         HitInfo info = calculateRayIntersection(ray);
         if(info.didHit) {
             ray.position = info.hitPos;
-            ray.direction = info.normal + RandomDirection(rngState);
-
             Material material = info.material;
+            vec3 diffuseDir = normalize(info.normal + RandomDirection(rngState));
+            vec3 specularDir = reflect(normalize(ray.direction), info.normal);
+            ray.direction = normalize(mix(diffuseDir, specularDir, clamp(material.smoothness, 0.0, 1.0)));
+
             vec3 emittedLight = material.emissiveColor * material.emissiveStrength;
             inLight += emittedLight * rayColor;
             rayColor *= material.color;
@@ -133,8 +136,8 @@ void main() {
     uvec2 pixelCoord = uvec2(uv * uResolution);
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 719393u;
     Ray ray = Ray(vec3(0.0, 0.0, -5.0), normalize(direction));
-    Sphere sphere0 = Sphere(vec3(0.0), 1.0, Material(vec3(0, 1, 0), vec3(0), 0));
-    Sphere sphere1 = Sphere(vec3(0.0, 2.0, -1.0), 1.0, Material(vec3(1.0), vec3(1, 1, 1), 2));
+    Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(0, 1, 0), vec3(0), 0, 0));
+    Sphere sphere1 = Sphere(vec3(0.0, 2.0, -1.0), 1.0, Material(vec3(0, 0, 1), vec3(0), 0, 1));
     spheres[0] = sphere0;
     spheres[1] = sphere1;
 
