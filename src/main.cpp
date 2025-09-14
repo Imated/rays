@@ -13,7 +13,7 @@ Shader* defaultShader;
 Shader* displayShader;
 int frameCount = 0;
 GLuint fbo;
-GLuint accumTextures[2];
+GLuint accumTexture;
 GLuint quadVAO = 0;
 GLuint ssbo = 0;
 
@@ -27,10 +27,8 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
     Window::params.width = width;
     Window::params.height = height;
-    glBindTexture(GL_TEXTURE_2D, accumTextures[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glBindTexture(GL_TEXTURE_2D, accumTextures[1]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    const float zero[4] = {0,0,0,0};
+    glClearTexImage(accumTexture, 0, GL_RGBA, GL_FLOAT, zero);
     resetAccumulation();
 }
 
@@ -56,10 +54,19 @@ int main() {
     Window window(800, 600);
     glfwSetFramebufferSizeCallback(window.getWindow(), windowSizeCallback);
 
-    defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag");
+    defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag", "resources/shaders/raytracer.comp");
     displayShader = new Shader("resources/shaders/display.vert", "resources/shaders/display.frag");
+
     glGenBuffers(1, &ssbo);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), spheres.data(), GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+
+    defaultShader->useCompute();
+    defaultShader->setInt("maxBounces", 4, true);
+    defaultShader->setInt("samplesPerPixel", 10, true);
+
+    glfwSwapInterval(0);
 
     while (!glfwWindowShouldClose(window.getWindow())) {
         startFrame = std::chrono::high_resolution_clock::now();
@@ -69,48 +76,35 @@ int main() {
         if (camera.hasMoved)
             resetAccumulation();
 
-        int readIdx  = frameCount % 2;
-        int writeIdx = (frameCount + 1) % 2;
-
         // accumulate pass
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, accumTextures[writeIdx], 0);
-
-        defaultShader->use();
+        defaultShader->useCompute();
+        glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
-        defaultShader->setUInt("renderedFrames", frameCount);
-        defaultShader->setInt("maxBounces", 10);
-        defaultShader->setInt("samplesPerPixel", 100);
-        defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()));
-        defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
-        defaultShader->setBool("shouldAccumulate", !camera.hasMoved);
 
-        defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height);
-        defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height));
+        defaultShader->setUInt("renderedFrames", frameCount, true);
+        defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()), true);
+        defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z, true);
+        defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height, true);
+        defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height), true);
+        defaultShader->setBool("shouldAccumulate", !camera.hasMoved, true);
 
-        glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), spheres.data(), GL_DYNAMIC_DRAW);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, accumTextures[readIdx]);
-
-        renderQuad();
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+        GLuint gx = (Window::params.width  + 15u) / 16u;
+        GLuint gy = (Window::params.height + 15u) / 16u;
+        glDispatchCompute(gx, gy, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 
         // display pass
         displayShader->use();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, accumTextures[writeIdx]);
+        glBindTexture(GL_TEXTURE_2D, accumTexture);
 
-        glBindVertexArray(quadVAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        renderQuad();
 
         glfwSwapBuffers(window.getWindow());
         glfwPollEvents();
         frameCount++;
         deltaTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - startFrame).count();
+        std::cout << deltaTime << std::endl;
     }
 }
 
@@ -151,15 +145,13 @@ void renderQuad() {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        glGenTextures(2, accumTextures);
-        for (unsigned int t : accumTextures) {
-            glBindTexture(GL_TEXTURE_2D, t);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        }
+        glGenTextures(1, &accumTexture);
+        glBindTexture(GL_TEXTURE_2D, accumTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glGenFramebuffers(1, &fbo);
     }
 
