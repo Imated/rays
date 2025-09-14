@@ -93,8 +93,8 @@ int main() {
         defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height), true);
         defaultShader->setBool("shouldAccumulate", !camera.hasMoved, true);
 
-        GLuint gx = (Window::params.width  + 15u) / 16u;
-        GLuint gy = (Window::params.height + 15u) / 16u;
+        GLuint gx = (Window::params.width  + 7u) / 8u;
+        GLuint gy = (Window::params.height + 7u) / 8u;
         glDispatchCompute(gx, gy, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 
