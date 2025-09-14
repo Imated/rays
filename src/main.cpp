@@ -27,8 +27,13 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
     Window::params.width = width;
     Window::params.height = height;
-    const float zero[4] = {0,0,0,0};
-    glClearTexImage(accumTexture, 0, GL_RGBA, GL_FLOAT, zero);
+    glGenTextures(1, &accumTexture);
+    glBindTexture(GL_TEXTURE_2D, accumTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     resetAccumulation();
 }
 
@@ -104,7 +109,7 @@ int main() {
         glfwPollEvents();
         frameCount++;
         deltaTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - startFrame).count();
-        std::cout << deltaTime << std::endl;
+        std::cout << 1/deltaTime << std::endl;
     }
 }
 
@@ -152,7 +157,6 @@ void renderQuad() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glGenFramebuffers(1, &fbo);
     }
 
     glBindVertexArray(quadVAO);
