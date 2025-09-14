@@ -60,31 +60,20 @@ uniform mat3 cameraRotation;
 uniform float uFocalLength;
 uniform bool shouldAccumulate;
 
-uint hash_u32(uint x) {
-    x ^= x >> 16;
-    x *= 0x7feb352dU;
-    x ^= x >> 15;
-    x *= 0x846ca68bU;
-    x ^= x >> 16;
-    return x;
+uint lcg(inout uint s) {
+    s = 1664525u * s + 1013904223u;
+    return s;
 }
-
 float rnd(inout uint s) {
-    s = hash_u32(s);
-    return float(s) * (1.0/4294967296.0);
+    return uintBitsToFloat((lcg(s) >> 9) | 0x3f800000u) - 1.0;
 }
 
-float randomValueNormalDistribution(inout uint rngState) {
-    float u = clamp(rnd(rngState), 1e-7, 1.0 - 1e-7);
-    float theta = 6.2831853 * rnd(rngState);
-    float rho   = sqrt(-2.0 * log(u));
-    return rho * cos(theta);
-}
 vec3 randomDirection(inout uint rngState) {
-    float x = randomValueNormalDistribution(rngState);
-    float y = randomValueNormalDistribution(rngState);
-    float z = randomValueNormalDistribution(rngState);
-    return normalize(vec3(x, y, z));
+    float z  = 1.0 - 2.0 * rnd(rngState);
+    float a  = 6.28318530718 * rnd(rngState);
+    float r  = sqrt(max(0.0, 1.0 - z*z));
+    float ca = cos(a), sa = sin(a);
+    return vec3(r*ca, r*sa, z);
 }
 
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
