@@ -80,10 +80,11 @@ int main() {
 
         defaultShader->use();
         defaultShader->setUInt("renderedFrames", frameCount);
-        defaultShader->setInt("maxBounces", 4);
-        defaultShader->setInt("samplesPerPixel", 3);
+        defaultShader->setInt("maxBounces", 10);
+        defaultShader->setInt("samplesPerPixel", 100);
         defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()));
         defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
+        defaultShader->setBool("shouldAccumulate", !camera.hasMoved);
 
         defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height);
         defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height));
