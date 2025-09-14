@@ -31,22 +31,17 @@ struct Triangle {
     vec4 normalA;
     vec4 normalB;
     vec4 normalC;
-    vec3 color;
-    float smoothness;
-    vec3 emissiveColor;
-    float emissiveStrength;
+    vec4 color_smoothness;
+    vec4 emissiveColor_strength;
 };
 layout (std430, binding = 1) buffer TriangleBuffer {
     Triangle triangles[];
 };
 
 struct Sphere {
-    vec3 pos;
-    float radius;
-    vec3 color;
-    float smoothness;
-    vec3 emissiveColor;
-    float emissiveStrength;
+    vec4 pos_radius;
+    vec4 color_smoothness;
+    vec4 emissiveColor_strength;
 };
 layout (std430, binding = 0) buffer SphereBuffer {
     Sphere spheres[];
@@ -77,10 +72,10 @@ vec3 randomDirection(inout uint rngState) {
 }
 
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
-    vec3 oc = sphere.pos - ray.origin;
+    vec3 oc = sphere.pos_radius.xyz - ray.origin;
     float a = dot(ray.direction, ray.direction);
     float b = -2.0 * dot(ray.direction, oc);
-    float c = dot(oc, oc) - sphere.radius*sphere.radius;
+    float c = dot(oc, oc) - sphere.pos_radius.w * sphere.pos_radius.w;
     float discriminant = b*b - 4.0 * a * c;
 
     HitInfo hitInfo;
@@ -92,12 +87,12 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
         if (hitInfo.distance > 0.0) {
             hitInfo.didHit = true;
             hitInfo.hitPos = ray.origin + ray.direction * hitInfo.distance;
-            hitInfo.normal = normalize(hitInfo.hitPos - sphere.pos);
+            hitInfo.normal = normalize(hitInfo.hitPos - sphere.pos_radius.xyz);
             Material material;
-            material.color = sphere.color;
-            material.emissiveColor = sphere.emissiveColor;
-            material.emissiveStrength = sphere.emissiveStrength;
-            material.smoothness = sphere.smoothness;
+            material.color = sphere.color_smoothness.xyz;
+            material.emissiveColor = sphere.emissiveColor_strength.xyz;
+            material.emissiveStrength = sphere.emissiveColor_strength.w;
+            material.smoothness = sphere.color_smoothness.w;
             hitInfo.material = material;
         }
     }
@@ -125,10 +120,10 @@ HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
     hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
     hitInfo.distance = dst;
     Material material;
-    material.color = tri.color;
-    material.emissiveColor = tri.emissiveColor;
-    material.emissiveStrength = tri.emissiveStrength;
-    material.smoothness = tri.smoothness;
+    material.color = tri.color_smoothness.xyz;
+    material.emissiveColor = tri.emissiveColor_strength.xyz;
+    material.emissiveStrength = tri.emissiveColor_strength.w;
+    material.smoothness = tri.color_smoothness.w;
     hitInfo.material = material;
     return hitInfo;
 }

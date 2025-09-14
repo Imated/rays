@@ -41,12 +41,9 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
 }
 
 struct Sphere {
-    glm::vec3 pos;
-    float radius;
-    glm::vec3 color;
-    float smoothness;
-    glm::vec3 emissiveColor;
-    float emissiveStrength;
+    glm::vec4 pos_radius;
+    glm::vec4 color_smoothness;
+    glm::vec4 emissiveColor_strength;
 };
 
 struct Triangle {
@@ -56,23 +53,21 @@ struct Triangle {
     glm::vec4 normalA;
     glm::vec4 normalB;
     glm::vec4 normalC;
-    glm::vec3 color;
-    float smoothness;
-    glm::vec3 emissiveColor;
-    float emissiveStrength;
+    glm::vec4 color_smoothness;
+    glm::vec4 emissiveColor_strength;
 };
 
 std::vector<Sphere> spheres = {
-    { glm::vec3(0.0, 0.0, 0.0), 1.0, glm::vec3(1, 1, 1), 1, glm::vec3(0), 0 },
-    { glm::vec3(0.0, 2.0, 2.0), 1.0, glm::vec3(0, 0, 1), 0, glm::vec3(1, 1, 1), 4 },
-    { glm::vec3(0.0, -21.0, -1.0), 20.0, glm::vec3(0.7, 0.2, 0.6), 0, glm::vec3(0), 0 }
+    { glm::vec4(0.0, 0.0, 0.0, 1.0), glm::vec4(1, 1, 1, 1), glm::vec4(0) },
+    { glm::vec4(0.0, 2.0, 2.0, 1.0), glm::vec4(0, 0, 1, 0), glm::vec4(1, 1, 1, 4) },
+    { glm::vec4(0.0, -21.0, -1.0, 20.0), glm::vec4(0.7, 0.2, 0.6, 0), glm::vec4(0) }
 };
 
 std::vector<Triangle> triangles = {
     {
         glm::vec4(0.0, 0.5, -1.0, 0), glm::vec4(3.0, 0.5, -1.0, 0), glm::vec4(0.0, 0.5, -4.0, 0),
         glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)),
-        glm::vec3(0.2, 0.8, 0.3), 0, glm::vec3(0), 0
+        glm::vec4(0.2, 0.8, 0.3, 0), glm::vec4(0)
     }
 };
 
