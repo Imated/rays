@@ -2,7 +2,7 @@
 
 layout(local_size_x=8, local_size_y=8) in;
 
-layout(rgba32f, binding = 0) uniform image2D accumImage;
+layout(rgba16f, binding = 0) uniform image2D accumImage;
 
 struct Material {
     vec3 color;
@@ -202,7 +202,7 @@ void main() {
     if (pixelCoord.x >= int(uResolution.x) || pixelCoord.y >= int(uResolution.y))
         return;
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 71933u;
-    vec2 pixelCenter = vec2(pixelCoord) + rnd(rngState);
+    vec2 pixelCenter = vec2(pixelCoord) + vec2(rnd(rngState), rnd(rngState));
     vec2 ndc = (pixelCenter - vec2(uResolution) * 0.5);
     vec3 dir = cameraRotation * normalize(vec3(ndc, uFocalLength));
     Ray ray = Ray(cameraPosition, dir);

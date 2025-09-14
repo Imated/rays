@@ -12,11 +12,13 @@ void renderQuad();
 Shader* defaultShader;
 Shader* displayShader;
 int frameCount = 0;
+int frames = 0;
 GLuint fbo;
 GLuint accumTexture;
 GLuint quadVAO = 0;
 GLuint sphereSSBO = 0;
 GLuint triangleSSBO = 0;
+double accTime = 0.0;
 
 raytracer::Camera camera = raytracer::Camera(10, 0.08f);
 
@@ -30,7 +32,7 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     Window::params.height = height;
     glGenTextures(1, &accumTexture);
     glBindTexture(GL_TEXTURE_2D, accumTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -110,7 +112,7 @@ int main() {
 
         // accumulate pass
         defaultShader->useCompute();
-        glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+        glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
 
@@ -137,7 +139,16 @@ int main() {
         glfwPollEvents();
         frameCount++;
         deltaTime = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - startFrame).count();
-        std::cout << 1/deltaTime << std::endl;
+        accTime += deltaTime;
+        frames++;
+
+        if (accTime >= 1.0) {
+            double fps = frames / accTime;
+            std::string title = "Raytracer - " + std::to_string(static_cast<int>(fps)) + " FPS";
+            glfwSetWindowTitle(window.getWindow(), title.c_str());
+            accTime = 0.0;
+            frames = 0;
+        }
     }
 }
 
@@ -180,7 +191,7 @@ void renderQuad() {
 
         glGenTextures(1, &accumTexture);
         glBindTexture(GL_TEXTURE_2D, accumTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
