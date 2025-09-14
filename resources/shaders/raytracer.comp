@@ -24,6 +24,22 @@ struct HitInfo {
     Material material;
 };
 
+struct Triangle {
+    vec4 posA;
+    vec4 posB;
+    vec4 posC;
+    vec4 normalA;
+    vec4 normalB;
+    vec4 normalC;
+    vec3 color;
+    float smoothness;
+    vec3 emissiveColor;
+    float emissiveStrength;
+};
+layout (std430, binding = 1) buffer TriangleBuffer {
+    Triangle triangles[];
+};
+
 struct Sphere {
     vec3 pos;
     float radius;
@@ -71,11 +87,6 @@ vec3 randomDirection(inout uint rngState) {
     return normalize(vec3(x, y, z));
 }
 
-vec2 randomDirectionInCircle(inout uint rngState) {
-    float theta = rnd(rngState) * 360;
-    return vec2(cos(theta), sin(theta));
-}
-
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
     vec3 oc = sphere.pos - ray.origin;
     float a = dot(ray.direction, ray.direction);
@@ -104,6 +115,35 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
     return hitInfo;
 }
 
+HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
+    vec3 edgeAB = tri.posB.xyz - tri.posA.xyz;
+    vec3 edgeAC = tri.posC.xyz - tri.posA.xyz;
+    vec3 normalVector = cross(edgeAB, edgeAC);
+    vec3 ao = ray.origin.xyz - tri.posA.xyz;
+    vec3 dao = cross(ao, ray.direction);
+
+    float determinant = -dot(ray.direction, normalVector);
+    float inverseDeterminant = 1 / determinant;
+
+    float dst = dot(ao, normalVector) * inverseDeterminant;
+    float u = dot(edgeAC, dao) * inverseDeterminant;
+    float v = -dot(edgeAB, dao) * inverseDeterminant;
+    float w = 1 - u - v;
+
+    HitInfo hitInfo;
+    hitInfo.didHit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
+    hitInfo.hitPos = ray.origin + ray.direction * dst;
+    hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
+    hitInfo.distance = dst;
+    Material material;
+    material.color = tri.color;
+    material.emissiveColor = tri.emissiveColor;
+    material.emissiveStrength = tri.emissiveStrength;
+    material.smoothness = tri.smoothness;
+    hitInfo.material = material;
+    return hitInfo;
+}
+
 HitInfo calculateRayIntersection(Ray ray) {
     HitInfo closestHit;
     closestHit.didHit = false;
@@ -112,6 +152,14 @@ HitInfo calculateRayIntersection(Ray ray) {
     for (int i = 0; i < spheres.length(); i++) {
         Sphere sphere = spheres[i];
         HitInfo hitInfo = intersectRaySphere(ray, sphere);
+        if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
+            closestHit = hitInfo;
+        }
+    }
+
+    for (int i = 0; i < triangles.length(); i++) {
+        Triangle tri = triangles[i];
+        HitInfo hitInfo = intersectRayTriangle(ray, tri);
         if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
             closestHit = hitInfo;
         }

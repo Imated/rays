@@ -15,7 +15,8 @@ int frameCount = 0;
 GLuint fbo;
 GLuint accumTexture;
 GLuint quadVAO = 0;
-GLuint ssbo = 0;
+GLuint sphereSSBO = 0;
+GLuint triangleSSBO = 0;
 
 raytracer::Camera camera = raytracer::Camera(10, 0.08f);
 
@@ -46,10 +47,31 @@ struct Sphere {
     float emissiveStrength;
 };
 
+struct Triangle {
+    glm::vec4 posA;
+    glm::vec4 posB;
+    glm::vec4 posC;
+    glm::vec4 normalA;
+    glm::vec4 normalB;
+    glm::vec4 normalC;
+    glm::vec3 color;
+    float smoothness;
+    glm::vec3 emissiveColor;
+    float emissiveStrength;
+};
+
 std::vector<Sphere> spheres = {
     { glm::vec3(0.0, 0.0, 0.0), 1.0, glm::vec3(1, 1, 1), 1, glm::vec3(0), 0 },
     { glm::vec3(0.0, 2.0, 2.0), 1.0, glm::vec3(0, 0, 1), 0, glm::vec3(1, 1, 1), 4 },
     { glm::vec3(0.0, -21.0, -1.0), 20.0, glm::vec3(0.7, 0.2, 0.6), 0, glm::vec3(0), 0 }
+};
+
+std::vector<Triangle> triangles = {
+    {
+        glm::vec4(0.0, 0.5, -1.0, 0), glm::vec4(3.0, 0.5, -1.0, 0), glm::vec4(0.0, 0.5, -4.0, 0),
+        glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)),
+        glm::vec3(0.2, 0.8, 0.3), 0, glm::vec3(0), 0
+    }
 };
 
 double deltaTime = 0.0f;
@@ -62,10 +84,15 @@ int main() {
     defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag", "resources/shaders/raytracer.comp");
     displayShader = new Shader("resources/shaders/display.vert", "resources/shaders/display.frag");
 
-    glGenBuffers(1, &ssbo);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    glGenBuffers(1, &sphereSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), spheres.data(), GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
+
+    glGenBuffers(1, &triangleSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), triangles.data(), GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
 
     defaultShader->useCompute();
     defaultShader->setInt("maxBounces", 4, true);
@@ -84,7 +111,8 @@ int main() {
         // accumulate pass
         defaultShader->useCompute();
         glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
 
         defaultShader->setUInt("renderedFrames", frameCount, true);
         defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()), true);
