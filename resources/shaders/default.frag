@@ -47,8 +47,9 @@ float RandomValue(inout uint rngState) {
     return result / 4294967295.0;
 }
 float RandomValueNormalDistribution(inout uint rngState) {
-    float theta = 2 * 3.1415926 * RandomValue(rngState);
-    float rho = sqrt(-2 * log(RandomValue(rngState)));
+    float u = clamp(RandomValue(rngState), 1e-7, 1.0 - 1e-7);
+    float theta = 6.2831853 * RandomValue(rngState);
+    float rho   = sqrt(-2.0 * log(u));
     return rho * cos(theta);
 }
 vec3 RandomDirection(inout uint rngState) {
@@ -98,9 +99,7 @@ HitInfo calculateRayIntersection(Ray ray) {
 
 vec3 GetEnvironmentLight(Ray ray) {
     float a = 0.5*(ray.direction.y + 1.0);
-    float sun = pow(max(0, dot(ray.direction, vec3(-45))), 20) * 20;
-    bool sunMask = a >= 1;
-    return mix(vec3(1), vec3(0.5, 0.7, 1.0), a) + sun * float(sunMask);
+    return mix(vec3(1), vec3(0.5, 0.7, 1.0), a);
 }
 
 uniform int maxBounces;
@@ -110,12 +109,11 @@ vec3 traceRay(Ray ray, inout uint rngState) {
     for(int i = 0; i <= maxBounces; i++) {
         HitInfo info = calculateRayIntersection(ray);
         if(info.didHit) {
-            ray.origin = info.hitPos;
+            ray.origin = info.hitPos + info.normal * 1e-4;
             Material material = info.material;
-            //vec3 diffuseDir = normalize(info.normal + RandomDirection(rngState));
-            //vec3 specularDir = reflect(normalize(ray.direction), info.normal);
-            //ray.direction = normalize(mix(diffuseDir, specularDir, clamp(material.smoothness, 0.0, 1.0)));
-            ray.direction = normalize(info.normal + RandomDirection(rngState));
+            vec3 diffuseDir = normalize(info.normal + RandomDirection(rngState));
+            vec3 specularDir = reflect(normalize(ray.direction), info.normal);
+            ray.direction = normalize(mix(diffuseDir, specularDir, clamp(material.smoothness, 0.0, 1.0)));
             vec3 emittedLight = material.emissiveColor * material.emissiveStrength;
             inLight += emittedLight * rayColor;
             rayColor *= material.color;
@@ -131,10 +129,10 @@ vec3 traceRay(Ray ray, inout uint rngState) {
 
 void main() {
     uvec2 pixelCoord = uvec2(uv * uResolution);
-    uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 719393u;
+    uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 71933u;
     vec3 dir = cameraRotation * normalize(vec3(uv * uResolution - uResolution * 0.5, uFocalLength));
     Ray ray = Ray(cameraPosition, dir);
-    Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(1, 1, 1), vec3(0), 0, 0));
+    Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(1, 1, 1), vec3(0), 0, 1));
     Sphere sphere1 = Sphere(cameraPosition, 1.0, Material(vec3(0, 0, 1), vec3(1, 1, 1), 4, 0));
     Sphere sphere2 = Sphere(vec3(0.0, -21.0, -1.0), 20.0, Material(vec3(0.7, 0.2, 0.6), vec3(0), 0, 0));
     spheres[0] = sphere0;
