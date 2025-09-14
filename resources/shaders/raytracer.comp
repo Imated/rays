@@ -45,9 +45,12 @@ uniform float uFocalLength;
 uniform bool shouldAccumulate;
 
 uint hash_u32(uint x) {
-    x ^= x >> 16; x *= 0x7feb352dU;
-    x ^= x >> 15; x *= 0x846ca68bU;
-    x ^= x >> 16; return x;
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
 }
 
 float rnd(inout uint s) {
@@ -66,6 +69,11 @@ vec3 randomDirection(inout uint rngState) {
     float y = randomValueNormalDistribution(rngState);
     float z = randomValueNormalDistribution(rngState);
     return normalize(vec3(x, y, z));
+}
+
+vec2 randomDirectionInCircle(inout uint rngState) {
+    float theta = rnd(rngState) * 360;
+    return vec2(cos(theta), sin(theta));
 }
 
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
@@ -146,7 +154,9 @@ void main() {
     if (pixelCoord.x >= int(uResolution.x) || pixelCoord.y >= int(uResolution.y))
         return;
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 71933u;
-    vec3 dir = cameraRotation * normalize(vec3(pixelCoord - uResolution * 0.5, uFocalLength));
+    vec2 pixelCenter = vec2(pixelCoord) + rnd(rngState);
+    vec2 ndc = (pixelCenter - vec2(uResolution) * 0.5);
+    vec3 dir = cameraRotation * normalize(vec3(ndc, uFocalLength));
     Ray ray = Ray(cameraPosition, dir);
 
     vec3 curr = vec3(0);
