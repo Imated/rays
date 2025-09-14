@@ -15,29 +15,12 @@ int frameCount = 0;
 GLuint fbo;
 GLuint accumTextures[2];
 GLuint quadVAO = 0;
+GLuint ssbo = 0;
 
 raytracer::Camera camera = raytracer::Camera(10, 0.08f);
 
 void resetAccumulation() {
     frameCount = 0;
-}
-
-void initAccum()
-{
-    if (quadVAO == 0)
-        renderQuad(); // this creates quadVAO, accumTextures[], and fbo
-
-    // init both accum textures to black once
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glDrawBuffer(GL_COLOR_ATTACHMENT0);
-
-    for (int i = 0; i < 2; ++i) {
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, accumTextures[i], 0);
-        glClearColor(0,0,0,0);
-        glClear(GL_COLOR_BUFFER_BIT);
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 static void windowSizeCallback(GLFWwindow* window, int width, int height) {
@@ -51,6 +34,21 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     resetAccumulation();
 }
 
+struct Sphere {
+    glm::vec3 pos;
+    float radius;
+    glm::vec3 color;
+    float smoothness;
+    glm::vec3 emissiveColor;
+    float emissiveStrength;
+};
+
+std::vector<Sphere> spheres = {
+    { glm::vec3(0.0, 0.0, 0.0), 1.0, glm::vec3(1, 1, 1), 1, glm::vec3(0), 0 },
+    { glm::vec3(0.0, 2.0, 2.0), 1.0, glm::vec3(0, 0, 1), 0, glm::vec3(1, 1, 1), 4 },
+    { glm::vec3(0.0, -21.0, -1.0), 20.0, glm::vec3(0.7, 0.2, 0.6), 0, glm::vec3(0), 0 }
+};
+
 double deltaTime = 0.0f;
 std::chrono::time_point<std::chrono::system_clock> startFrame;
 
@@ -60,7 +58,8 @@ int main() {
 
     defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag");
     displayShader = new Shader("resources/shaders/display.vert", "resources/shaders/display.frag");
-    initAccum();
+    glGenBuffers(1, &ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 
     while (!glfwWindowShouldClose(window.getWindow())) {
         startFrame = std::chrono::high_resolution_clock::now();
@@ -79,6 +78,7 @@ int main() {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, accumTextures[writeIdx], 0);
 
         defaultShader->use();
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
         defaultShader->setUInt("renderedFrames", frameCount);
         defaultShader->setInt("maxBounces", 10);
         defaultShader->setInt("samplesPerPixel", 100);
@@ -89,13 +89,10 @@ int main() {
         defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height);
         defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height));
 
+        glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(Sphere), spheres.data(), GL_DYNAMIC_DRAW);
+
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, accumTextures[readIdx]);
-
-        if (frameCount == 0) {
-            glClearColor(0,0,0,0);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
 
         renderQuad();
 

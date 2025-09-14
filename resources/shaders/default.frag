@@ -1,11 +1,11 @@
-#version 330 core
+#version 460 core
 out vec4 FragColor;
 
 struct Material {
     vec3 color;
+    float smoothness;
     vec3 emissiveColor;
     float emissiveStrength;
-    float smoothness;
 };
 
 struct Ray {
@@ -16,7 +16,13 @@ struct Ray {
 struct Sphere {
     vec3 pos;
     float radius;
-    Material material;
+    vec3 color;
+    float smoothness;
+    vec3 emissiveColor;
+    float emissiveStrength;
+};
+layout (std430, binding = 0) buffer SphereBuffer {
+    Sphere spheres[];
 };
 
 struct HitInfo {
@@ -30,7 +36,6 @@ struct HitInfo {
 in vec2 uv;
 in vec3 direction;
 
-Sphere spheres[3];
 uniform uvec2 uResolution;
 uniform sampler2D uPrevFrame;
 uniform float uFocalLength;
@@ -76,7 +81,12 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
             hitInfo.didHit = true;
             hitInfo.hitPos = ray.origin + ray.direction * hitInfo.distance;
             hitInfo.normal = normalize(hitInfo.hitPos - sphere.pos);
-            hitInfo.material = sphere.material;
+            Material material;
+            material.color = sphere.color;
+            material.emissiveColor = sphere.emissiveColor;
+            material.emissiveStrength = sphere.emissiveStrength;
+            material.smoothness = sphere.smoothness;
+            hitInfo.material = material;
         }
     }
     return hitInfo;
@@ -87,7 +97,7 @@ HitInfo calculateRayIntersection(Ray ray) {
     closestHit.didHit = false;
     closestHit.distance = 1.0 / 0.0;
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < spheres.length(); i++) {
         Sphere sphere = spheres[i];
         HitInfo hitInfo = intersectRaySphere(ray, sphere);
         if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
@@ -132,12 +142,6 @@ void main() {
     uint rngState = pixelCoord.x * uResolution.x + pixelCoord.y + renderedFrames * 71933u;
     vec3 dir = cameraRotation * normalize(vec3(uv * uResolution - uResolution * 0.5, uFocalLength));
     Ray ray = Ray(cameraPosition, dir);
-    Sphere sphere0 = Sphere(vec3(0.0, 0.0, 0.0), 1.0, Material(vec3(1, 1, 1), vec3(0), 0, 1));
-    Sphere sphere1 = Sphere(cameraPosition, 1.0, Material(vec3(0, 0, 1), vec3(1, 1, 1), 4, 0));
-    Sphere sphere2 = Sphere(vec3(0.0, -21.0, -1.0), 20.0, Material(vec3(0.7, 0.2, 0.6), vec3(0), 0, 0));
-    spheres[0] = sphere0;
-    spheres[1] = sphere1;
-    spheres[2] = sphere2;
 
     vec3 curr = vec3(0);
     for(int rayIndex = 0; rayIndex < samplesPerPixel; rayIndex++)
