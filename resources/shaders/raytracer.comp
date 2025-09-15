@@ -24,6 +24,18 @@ struct HitInfo {
     Material material;
 };
 
+struct MeshInfo {
+    uint firstTriangleIndex;
+    uint numTriangles;
+    vec4 boundingBoxMin;
+    vec4 boundingBoxMax;
+    vec4 color_smoothness;
+    vec4 emissionColor_emissionStrength;
+};
+layout (std430, binding = 2) buffer MeshBuffer {
+    MeshInfo meshes[];
+};
+
 struct Triangle {
     vec4 posA;
     vec4 posB;
@@ -31,8 +43,6 @@ struct Triangle {
     vec4 normalA;
     vec4 normalB;
     vec4 normalC;
-    vec4 color_smoothness;
-    vec4 emissiveColor_strength;
 };
 layout (std430, binding = 1) buffer TriangleBuffer {
     Triangle triangles[];
@@ -115,17 +125,26 @@ HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
     float w = 1 - u - v;
 
     HitInfo hitInfo;
+    if (dot(normalize(normalVector), ray.direction) >= 0.0) {
+        hitInfo.didHit = false;
+        return hitInfo;
+    }
     hitInfo.didHit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
     hitInfo.hitPos = ray.origin + ray.direction * dst;
     hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
     hitInfo.distance = dst;
-    Material material;
-    material.color = tri.color_smoothness.xyz;
-    material.emissiveColor = tri.emissiveColor_strength.xyz;
-    material.emissiveStrength = tri.emissiveColor_strength.w;
-    material.smoothness = tri.color_smoothness.w;
-    hitInfo.material = material;
     return hitInfo;
+}
+
+bool intersectRayBoundingBox(Ray ray, vec3 boundsMin, vec3 boundsMax) {
+    vec3 invDir = 1 / ray.direction;
+    vec3 tMin = (boundsMin - ray.origin) * invDir;
+    vec3 tMax = (boundsMax - ray.origin) * invDir;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return tNear <= tFar;
 }
 
 HitInfo calculateRayIntersection(Ray ray) {
@@ -141,11 +160,25 @@ HitInfo calculateRayIntersection(Ray ray) {
         }
     }
 
-    for (int i = 0; i < triangles.length(); i++) {
-        Triangle tri = triangles[i];
-        HitInfo hitInfo = intersectRayTriangle(ray, tri);
-        if (hitInfo.didHit && hitInfo.distance < closestHit.distance) {
-            closestHit = hitInfo;
+    for (int meshIndex = 0; meshIndex < meshes.length(); meshIndex++) {
+        MeshInfo mesh = meshes[meshIndex];
+        if(!intersectRayBoundingBox(ray, mesh.boundingBoxMin.xyz, mesh.boundingBoxMax.xyz)) {
+            continue;
+        }
+        for (int i = 0; i < mesh.numTriangles; i++) {
+            uint triIndex = mesh.firstTriangleIndex + i;
+            Triangle tri = triangles[triIndex];
+            HitInfo hitInfo = intersectRayTriangle(ray, tri);
+
+            if(hitInfo.didHit && hitInfo.distance < closestHit.distance) {
+                closestHit = hitInfo;
+                Material material;
+                material.color = mesh.color_smoothness.xyz;
+                material.emissiveColor = mesh.emissionColor_emissionStrength.xyz;
+                material.emissiveStrength = mesh.emissionColor_emissionStrength.w;
+                material.smoothness = mesh.color_smoothness.w;
+                closestHit.material = material;
+            }
         }
     }
     return closestHit;

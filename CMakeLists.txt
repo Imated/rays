@@ -37,7 +37,9 @@ file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/
 add_executable("${CMAKE_PROJECT_NAME}" ${MY_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/resources/resources.rc"
 		src/main.cpp
 		src/Camera.cpp
-		src/Camera.h)
+		src/Camera.h
+		src/Model.cpp
+		src/Model.h)
 
 set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY CXX_STANDARD 20)
 
@@ -46,6 +48,13 @@ target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC GLFW_INCLUDE_NONE=1)
 if(PRODUCTION_BUILD)
 	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=1) 
 	set(CMAKE_CXX_FLAGS "-O2 -march=native -std=c++20 -Wall")# release mode
+
+	add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${CMAKE_SOURCE_DIR}/libs/assimp/assimp.dll
+			$<TARGET_FILE_DIR:raytracer>/libassimp-6d.dll
+	)
+
 	add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_directory
 			${CMAKE_SOURCE_DIR}/resources
@@ -55,6 +64,12 @@ else()
 	# This is useful to get an ASSETS_PATH in your IDE during development
 	target_compile_definitions("${CMAKE_PROJECT_NAME}" PUBLIC PRODUCTION_BUILD=0) 
 	set(CMAKE_CXX_FLAGS "-g")# Debug mode
+	add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${CMAKE_SOURCE_DIR}/libs/assimp/assimp.dll
+			$<TARGET_FILE_DIR:raytracer>/libassimp-6d.dll
+	)
+
 	add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_directory
 			${CMAKE_SOURCE_DIR}/resources
@@ -69,7 +84,7 @@ if(MSVC) # If using the VS compiler...
 
 	#add this line if you want to remove the console!
 	set_target_properties("${CMAKE_PROJECT_NAME}" PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup") #no console
-	
+
 	#set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug<$<CONFIG:Debug>:Debug>")
 	#set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
 endif()
@@ -77,5 +92,7 @@ endif()
 target_include_directories("${CMAKE_PROJECT_NAME}" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
 target_include_directories("${CMAKE_PROJECT_NAME}" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/")
 
-target_link_libraries("${CMAKE_PROJECT_NAME}" PRIVATE glfw glad glm)
+include_directories("${CMAKE_SOURCE_DIR}/libs/assimp/include")
+
+target_link_libraries("${CMAKE_PROJECT_NAME}" PRIVATE glfw glad glm "${CMAKE_SOURCE_DIR}/libs/assimp/libassimpd.dll.a")
 

@@ -1,16 +1,20 @@
 ﻿#include <chrono>
 
 #include "Camera.h"
+#include "Model.h"
 #include "Window.h"
 #include "Shader.h"
 #include "glm/gtc/type_ptr.inl"
 using raytracer::Window;
 using raytracer::Shader;
+using raytracer::Sphere;
+using raytracer::Triangle;
+using raytracer::MeshInfo;
 
 void renderQuad();
 
-Shader* defaultShader;
-Shader* displayShader;
+Shader *defaultShader;
+Shader *displayShader;
 int frameCount = 0;
 int frames = 0;
 GLuint fbo;
@@ -18,6 +22,7 @@ GLuint accumTexture;
 GLuint quadVAO = 0;
 GLuint sphereSSBO = 0;
 GLuint triangleSSBO = 0;
+GLuint meshSSBO = 0;
 double accTime = 0.0;
 
 raytracer::Camera camera = raytracer::Camera(10, 0.08f);
@@ -26,7 +31,7 @@ void resetAccumulation() {
     frameCount = 0;
 }
 
-static void windowSizeCallback(GLFWwindow* window, int width, int height) {
+static void windowSizeCallback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
     Window::params.width = width;
     Window::params.height = height;
@@ -40,36 +45,16 @@ static void windowSizeCallback(GLFWwindow* window, int width, int height) {
     resetAccumulation();
 }
 
-struct Sphere {
-    glm::vec4 pos_radius;
-    glm::vec4 color_smoothness;
-    glm::vec4 emissiveColor_strength;
-};
-
-struct Triangle {
-    glm::vec4 posA;
-    glm::vec4 posB;
-    glm::vec4 posC;
-    glm::vec4 normalA;
-    glm::vec4 normalB;
-    glm::vec4 normalC;
-    glm::vec4 color_smoothness;
-    glm::vec4 emissiveColor_strength;
-};
 
 std::vector<Sphere> spheres = {
-    { glm::vec4(0.0, 0.0, 0.0, 1.0), glm::vec4(1, 1, 1, 1), glm::vec4(0) },
-    { glm::vec4(0.0, 2.0, 2.0, 1.0), glm::vec4(0, 0, 1, 0), glm::vec4(1, 1, 1, 4) },
-    { glm::vec4(0.0, -21.0, -1.0, 20.0), glm::vec4(0.7, 0.2, 0.6, 0), glm::vec4(0) }
+    {vec4(0.0, 0.0, 0.0, 1.0), vec4(1, 1, 1, 1), vec4(0)},
+    {vec4(0.0, 2.0, 2.0, 1.0), vec4(0, 0, 1, 0), vec4(1, 1, 1, 4)},
+    {vec4(0.0, -21.0, -1.0, 20.0), vec4(0.7, 0.2, 0.6, 0), vec4(0)}
 };
 
-std::vector<Triangle> triangles = {
-    {
-        glm::vec4(0.0, 0.5, -1.0, 0), glm::vec4(3.0, 0.5, -1.0, 0), glm::vec4(0.0, 0.5, -4.0, 0),
-        glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)), glm::normalize(glm::vec4(0.0, 1.0, 0.0, 0)),
-        glm::vec4(0.2, 0.8, 0.3, 0), glm::vec4(0)
-    }
-};
+std::vector<Triangle> triangles;
+std::vector<MeshInfo> meshes;
+raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb");
 
 double deltaTime = 0.0f;
 std::chrono::time_point<std::chrono::system_clock> startFrame;
@@ -78,8 +63,12 @@ int main() {
     Window window(800, 600);
     glfwSetFramebufferSizeCallback(window.getWindow(), windowSizeCallback);
 
-    defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag", "resources/shaders/raytracer.comp");
+    defaultShader = new Shader("resources/shaders/default.vert", "resources/shaders/default.frag",
+                               "resources/shaders/raytracer.comp");
     displayShader = new Shader("resources/shaders/display.vert", "resources/shaders/display.frag");
+
+    suzanne.addTriangles(triangles);
+    suzanne.addMesh(meshes);
 
     glGenBuffers(1, &sphereSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
@@ -90,6 +79,11 @@ int main() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangleSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, triangles.size() * sizeof(Triangle), triangles.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
+
+    glGenBuffers(1, &meshSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, meshSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, meshes.size() * sizeof(MeshInfo), meshes.data(), GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meshSSBO);
 
     defaultShader->useCompute();
     defaultShader->setInt("maxBounces", 4, true);
@@ -110,15 +104,19 @@ int main() {
         glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meshSSBO);
 
         defaultShader->setUInt("renderedFrames", frameCount, true);
         defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()), true);
-        defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y, camera.getPosition().z, true);
+        defaultShader->setVector3("cameraPosition", camera.getPosition().x, camera.getPosition().y,
+                                  camera.getPosition().z, true);
         defaultShader->setUIVector2("uResolution", Window::params.width, Window::params.height, true);
-        defaultShader->setFloat("uFocalLength", static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(Window::params.height), true);
+        defaultShader->setFloat("uFocalLength",
+                                static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(
+                                    Window::params.height), true);
         defaultShader->setBool("shouldAccumulate", !camera.hasMoved, true);
 
-        GLuint gx = (Window::params.width  + 7u) / 8u;
+        GLuint gx = (Window::params.width + 7u) / 8u;
         GLuint gy = (Window::params.height + 7u) / 8u;
         glDispatchCompute(gx, gy, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
@@ -150,19 +148,19 @@ int main() {
 GLuint quadVBO = 0;
 
 void renderQuad() {
-    if(quadVAO == 0)
-    {
+    if (quadVAO == 0) {
         GLuint EBO;
 
         float vertices[] = {
-            1.0f,  1.0f,  1.0, 1.0,  // top right
-            1.0f, -1.0f,  1.0, 0.0,  // bottom right
-           -1.0f, -1.0f,  0.0, 0.0,  // bottom left
-           -1.0f,  1.0f,  0.0, 1.0   // top left
-       };
-        unsigned int indices[] = {  // note that we start from 0!
-            0, 1, 3,  // first Triangle
-            1, 2, 3   // second Triangle
+            1.0f, 1.0f, 1.0, 1.0, // top right
+            1.0f, -1.0f, 1.0, 0.0, // bottom right
+            -1.0f, -1.0f, 0.0, 0.0, // bottom left
+            -1.0f, 1.0f, 0.0, 1.0 // top left
+        };
+        unsigned int indices[] = {
+            // note that we start from 0!
+            0, 1, 3, // first Triangle
+            1, 2, 3 // second Triangle
         };
 
         glGenVertexArrays(1, &quadVAO);
@@ -178,7 +176,7 @@ void renderQuad() {
 
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), reinterpret_cast<void*>(2 * sizeof(float)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), reinterpret_cast<void *>(2 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
