@@ -10,10 +10,11 @@
 #include "assimp/Vertex.h"
 #include "glm/common.hpp"
 #include "glm/vec2.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "misc/Logger.h"
 
 namespace raytracer {
-    Model::Model(const char *filename): meshInfo(), nodes() {
+    Model::Model(const char *filename, vec3 pos, vec3 rotation, vec3 scale): meshInfo() {
         Assimp::Importer importer;
 
         const unsigned flags =
@@ -82,6 +83,11 @@ namespace raytracer {
             trianglesReordered[i] = triangles[order[i]];
         triangles.swap(trianglesReordered);
 
+        auto rotMat = mat4(1.0f);
+        rotMat = rotate(rotMat, rotation.x, vec3(1.f, 0.f, 0.f));
+        rotMat = rotate(rotMat, rotation.y, vec3(0.f, 1.f, 0.f));
+        rotMat = rotate(rotMat, rotation.z, vec3(0.f, 0.f, 1.f));
+
         meshInfo = {
             0u,
             static_cast<uint32_t>(triangles.size()),
@@ -89,7 +95,11 @@ namespace raytracer {
             vec4(bbMin, 0),
             vec4(bbMax, 0),
             vec4(1, 1, 1, 0),
-            vec4(0, 0, 0, 0)
+            vec4(0, 0, 0, 0),
+            vec4(pos, 0),
+            rotMat,
+            inverse(rotMat),
+            vec4(scale, 0),
         };
     }
 

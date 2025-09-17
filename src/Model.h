@@ -31,11 +31,15 @@ namespace raytracer {
         vec4 boundingBoxMax;
         vec4 color_smoothness;
         vec4 emissiveColor_strength;
+        vec4 pos;
+        mat4 rotation;
+        mat4 invRotation;
+        vec4 scale;
     };
 
     class Model {
     public:
-        explicit Model(const char* filename);
+        explicit Model(const char* filename, vec3 pos, vec3 rotation, vec3 scale);
         ~Model();
 
         void addTriangles(std::vector<Triangle>& triangles) const;
@@ -48,5 +52,9 @@ namespace raytracer {
         std::vector<vec3> normals;
         std::vector<Triangle> triangles;
         std::vector<BVHNode> nodes;
+
+        vec3 position;
+        vec3 rotation;
+        vec3 scale;
     };
 }

@@ -41,6 +41,10 @@ struct MeshInfo {
     vec4 boundingBoxMax;
     vec4 color_smoothness;
     vec4 emissionColor_emissionStrength;
+    vec4 pos;
+    mat4 rotation;
+    mat4 invRotation;
+    vec4 scale;
 };
 layout (std430, binding = 2) buffer MeshBuffer {
     MeshInfo meshes[];
@@ -219,10 +223,19 @@ HitInfo calculateRayIntersection(Ray ray) {
     for (int meshIndex = 0; meshIndex < meshes.length(); meshIndex++) {
         MeshInfo mesh = meshes[meshIndex];
 
-        HitInfo hitInfo = intersectRayTriangleBVH(ray);
+        Ray localRay;
+        localRay.origin = ray.origin - mesh.pos.xyz;
+        localRay.origin = mat3(mesh.rotation) * localRay.origin;
+        localRay.direction = mat3(mesh.rotation) * ray.direction;
+
+        HitInfo hitInfo = intersectRayTriangleBVH(localRay);
 
         if(hitInfo.didHit && hitInfo.distance < closestHit.distance) {
             closestHit = hitInfo;
+            closestHit.hitPos = mat3(mesh.invRotation) * closestHit.hitPos;
+            closestHit.hitPos += mesh.pos.xyz;
+            closestHit.normal = normalize(mat3(mesh.invRotation) * closestHit.normal);
+
             Material material;
             material.color = mesh.color_smoothness.xyz;
             material.emissiveColor = mesh.emissionColor_emissionStrength.xyz;
