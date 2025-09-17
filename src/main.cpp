@@ -23,6 +23,7 @@ GLuint quadVAO = 0;
 GLuint sphereSSBO = 0;
 GLuint triangleSSBO = 0;
 GLuint meshSSBO = 0;
+GLuint nodeSSBO = 0;
 double accTime = 0.0;
 
 raytracer::Camera camera = raytracer::Camera(10, 0.08f);
@@ -54,6 +55,7 @@ std::vector<Sphere> spheres = {
 
 std::vector<Triangle> triangles;
 std::vector<MeshInfo> meshes;
+std::vector<raytracer::BVHNode> nodes;
 raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb");
 
 double deltaTime = 0.0f;
@@ -69,6 +71,9 @@ int main() {
 
     suzanne.addTriangles(triangles);
     suzanne.addMesh(meshes);
+    suzanne.addNodes(nodes);
+
+    printf("tris=%zu nodes=%zu\n", triangles.size(), nodes.size());
 
     glGenBuffers(1, &sphereSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereSSBO);
@@ -85,9 +90,14 @@ int main() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, meshes.size() * sizeof(MeshInfo), meshes.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meshSSBO);
 
+    glGenBuffers(1, &nodeSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, nodeSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, nodes.size() * sizeof(raytracer::BVHNode), nodes.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, nodeSSBO);
+
     defaultShader->useCompute();
     defaultShader->setInt("maxBounces", 4, true);
-    defaultShader->setInt("samplesPerPixel", 10, true);
+    defaultShader->setInt("samplesPerPixel", 2, true);
 
     glfwSwapInterval(0);
 
@@ -105,6 +115,7 @@ int main() {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meshSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, nodeSSBO);
 
         defaultShader->setUInt("renderedFrames", frameCount, true);
         defaultShader->setMatrix3x3("cameraRotation", glm::value_ptr(camera.getViewMatrix()), true);

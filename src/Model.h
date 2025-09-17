@@ -1,9 +1,9 @@
 ﻿#pragma once
 #include <vector>
 
+#include "BVH.h"
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"
-struct aiFace;
 using namespace glm;
 
 namespace raytracer {
@@ -40,10 +40,13 @@ namespace raytracer {
 
         void addTriangles(std::vector<Triangle>& triangles) const;
         void addMesh(std::vector<MeshInfo>& meshes) const;
+        void addNodes(std::vector<BVHNode>& nodes) const;
     private:
         MeshInfo meshInfo;
         std::vector<vec3> vertices;
+        std::vector<uint32_t> indices;
         std::vector<vec3> normals;
         std::vector<Triangle> triangles;
+        std::vector<BVHNode> nodes;
     };
 }

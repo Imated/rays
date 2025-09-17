@@ -13,14 +13,14 @@
 #include "misc/Logger.h"
 
 namespace raytracer {
-    Model::Model(const char *filename): meshInfo() {
+    Model::Model(const char *filename): meshInfo(), nodes() {
         Assimp::Importer importer;
 
         const unsigned flags =
-            aiProcess_Triangulate |
-            aiProcess_GenNormals |
-            aiProcess_JoinIdenticalVertices |
-            aiProcess_ImproveCacheLocality;
+                aiProcess_Triangulate |
+                aiProcess_GenNormals |
+                aiProcess_JoinIdenticalVertices |
+                aiProcess_ImproveCacheLocality;
 
 
         const aiScene *scene = importer.ReadFile(filename, flags);
@@ -29,18 +29,20 @@ namespace raytracer {
             return;
         }
 
-        const aiMesh* model = scene->mMeshes[0];
+        const aiMesh *model = scene->mMeshes[0];
 
-        vertices.clear();  vertices.reserve(model->mNumVertices);
-        normals.clear();   normals.reserve(model->mNumVertices);
+        vertices.clear();
+        vertices.reserve(model->mNumVertices);
+        normals.clear();
+        normals.reserve(model->mNumVertices);
 
         for (unsigned i = 0; i < model->mNumVertices; ++i) {
-            vertices[i] = vec3(model->mVertices[i].x, model->mVertices[i].y, model->mVertices[i].z);
-            normals[i] = vec3(model->mNormals[i].x, model->mNormals[i].y, model->mNormals[i].z);
+            vertices.emplace_back(model->mVertices[i].x, model->mVertices[i].y, model->mVertices[i].z);
+            normals.emplace_back(model->mNormals[i].x, model->mNormals[i].y, model->mNormals[i].z);
         }
 
         vec3 bbMin(FLT_MAX), bbMax(-FLT_MAX);
-        for (auto& p : vertices) {
+        for (auto &p: vertices) {
             bbMin = min(bbMin, p);
             bbMax = max(bbMax, p);
         }
@@ -49,16 +51,19 @@ namespace raytracer {
         triangles.reserve(model->mNumFaces);
 
         for (unsigned f = 0; f < model->mNumFaces; ++f) {
-            const aiFace& face = model->mFaces[f];
+            const aiFace &face = model->mFaces[f];
             if (face.mNumIndices != 3)
                 continue;
 
             const unsigned i0 = face.mIndices[0];
             const unsigned i1 = face.mIndices[1];
             const unsigned i2 = face.mIndices[2];
+            indices.push_back(i0);
+            indices.push_back(i1);
+            indices.push_back(i2);
 
             vec3 p0 = vertices[i0], p1 = vertices[i1], p2 = vertices[i2];
-            vec3 n0 = normals[i0],  n1 = normals[i1],  n2 = normals[i2];
+            vec3 n0 = normals[i0], n1 = normals[i1], n2 = normals[i2];
 
             Triangle tri = {
                 vec4(p0, 0.0f), vec4(p1, 0.0f), vec4(p2, 0.0f),
@@ -66,6 +71,16 @@ namespace raytracer {
             };
             triangles.push_back(tri);
         }
+
+        auto bvh = BVH(vertices, indices);
+        nodes = bvh.getNodes();
+        const auto &order = bvh.getTriIndices();
+
+        std::vector<Triangle> trianglesReordered;
+        trianglesReordered.resize(triangles.size());
+        for (size_t i = 0; i < order.size(); ++i)
+            trianglesReordered[i] = triangles[order[i]];
+        triangles.swap(trianglesReordered);
 
         meshInfo = {
             0u,
@@ -86,6 +101,10 @@ namespace raytracer {
 
     void Model::addMesh(std::vector<MeshInfo>& meshes) const {
         meshes.push_back(meshInfo);
+    }
+
+    void Model::addNodes(std::vector<BVHNode>& nodes) const {
+        nodes.insert(nodes.end(), this->nodes.begin(), this->nodes.end());
     }
 }
 

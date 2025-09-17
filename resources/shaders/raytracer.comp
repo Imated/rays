@@ -24,6 +24,16 @@ struct HitInfo {
     Material material;
 };
 
+struct TriangleHitInfo
+{
+    bool didHit;
+    float distance;
+    vec3 hitPos;
+    vec3 normal;
+    Material material;
+    int triIndex;
+};
+
 struct MeshInfo {
     uint firstTriangleIndex;
     uint numTriangles;
@@ -44,7 +54,7 @@ struct Triangle {
     vec4 normalB;
     vec4 normalC;
 };
-layout (std430, binding = 1) buffer TriangleBuffer {
+layout (std430, binding = 1) readonly buffer TriangleBuffer {
     Triangle triangles[];
 };
 
@@ -53,8 +63,17 @@ struct Sphere {
     vec4 color_smoothness;
     vec4 emissiveColor_strength;
 };
-layout (std430, binding = 0) buffer SphereBuffer {
+layout (std430, binding = 0) readonly buffer SphereBuffer {
     Sphere spheres[];
+};
+
+struct BVHNode {
+    vec4 min;
+    vec4 max;
+    uvec4 triIndex_triCount_childIndex;
+};
+layout (std430, binding = 3) readonly buffer NodeBuffer {
+    BVHNode nodes[];
 };
 
 uniform uvec2 uResolution;
@@ -79,6 +98,81 @@ vec3 randomDirection(inout uint rngState) {
     float r  = sqrt(max(0.0, 1.0 - z*z));
     float ca = cos(a), sa = sin(a);
     return vec3(r*ca, r*sa, z);
+}
+
+bool intersectRayBoundingBox(Ray ray, vec3 boundsMin, vec3 boundsMax, float dst) {
+    vec3 invDir = 1 / ray.direction;
+    vec3 tMin = (boundsMin - ray.origin) * invDir;
+    vec3 tMax = (boundsMax - ray.origin) * invDir;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return tNear <= tFar && (tNear < dst);
+}
+
+HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
+    vec3 edgeAB = tri.posB.xyz - tri.posA.xyz;
+    vec3 edgeAC = tri.posC.xyz - tri.posA.xyz;
+    vec3 normalVector = cross(edgeAB, edgeAC);
+    vec3 ao = ray.origin.xyz - tri.posA.xyz;
+    vec3 dao = cross(ao, ray.direction);
+
+    float determinant = -dot(ray.direction, normalVector);
+    float inverseDeterminant = 1 / determinant;
+
+    float dst = dot(ao, normalVector) * inverseDeterminant;
+    float u = dot(edgeAC, dao) * inverseDeterminant;
+    float v = -dot(edgeAB, dao) * inverseDeterminant;
+    float w = 1 - u - v;
+
+    HitInfo hitInfo;
+    hitInfo.didHit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
+    hitInfo.hitPos = ray.origin + ray.direction * dst;
+    hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
+    hitInfo.distance = dst;
+    return hitInfo;
+}
+
+HitInfo intersectRayTriangleBVH(Ray ray) {
+    HitInfo best;
+    best.didHit = false;
+    best.distance = 3.4e38;
+
+    if (nodes.length() == 0)
+    return best;
+
+    uint stack[64];
+    int sp = 0;
+    stack[sp++] = 0u;
+
+    while (sp > 0) {
+        uint ni = stack[--sp];
+        BVHNode n = nodes[ni];
+
+        if (!intersectRayBoundingBox(ray, n.min.xyz, n.max.xyz, best.distance))
+            continue;
+
+        uint first = n.triIndex_triCount_childIndex.x;
+        uint count = n.triIndex_triCount_childIndex.y;
+
+        if (count > 0u) {
+            for (uint i = 0u; i < count; ++i) {
+                Triangle tri = triangles[first + i];
+                HitInfo h = intersectRayTriangle(ray, tri);
+                if (h.didHit && h.distance < best.distance)
+                    best = h;
+            }
+        } else {
+            uint left = n.triIndex_triCount_childIndex.z;
+            uint right = left + 1u;
+            if (right < nodes.length() && sp < 64)
+                stack[sp++] = right;
+            if (left  < nodes.length() && sp < 64)
+                stack[sp++] = left;
+        }
+    }
+    return best;
 }
 
 HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
@@ -109,44 +203,6 @@ HitInfo intersectRaySphere(Ray ray, Sphere sphere) {
     return hitInfo;
 }
 
-HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
-    vec3 edgeAB = tri.posB.xyz - tri.posA.xyz;
-    vec3 edgeAC = tri.posC.xyz - tri.posA.xyz;
-    vec3 normalVector = cross(edgeAB, edgeAC);
-    vec3 ao = ray.origin.xyz - tri.posA.xyz;
-    vec3 dao = cross(ao, ray.direction);
-
-    float determinant = -dot(ray.direction, normalVector);
-    float inverseDeterminant = 1 / determinant;
-
-    float dst = dot(ao, normalVector) * inverseDeterminant;
-    float u = dot(edgeAC, dao) * inverseDeterminant;
-    float v = -dot(edgeAB, dao) * inverseDeterminant;
-    float w = 1 - u - v;
-
-    HitInfo hitInfo;
-    if (dot(normalize(normalVector), ray.direction) >= 0.0) {
-        hitInfo.didHit = false;
-        return hitInfo;
-    }
-    hitInfo.didHit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
-    hitInfo.hitPos = ray.origin + ray.direction * dst;
-    hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
-    hitInfo.distance = dst;
-    return hitInfo;
-}
-
-bool intersectRayBoundingBox(Ray ray, vec3 boundsMin, vec3 boundsMax) {
-    vec3 invDir = 1 / ray.direction;
-    vec3 tMin = (boundsMin - ray.origin) * invDir;
-    vec3 tMax = (boundsMax - ray.origin) * invDir;
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return tNear <= tFar;
-}
-
 HitInfo calculateRayIntersection(Ray ray) {
     HitInfo closestHit;
     closestHit.didHit = false;
@@ -162,23 +218,17 @@ HitInfo calculateRayIntersection(Ray ray) {
 
     for (int meshIndex = 0; meshIndex < meshes.length(); meshIndex++) {
         MeshInfo mesh = meshes[meshIndex];
-        if(!intersectRayBoundingBox(ray, mesh.boundingBoxMin.xyz, mesh.boundingBoxMax.xyz)) {
-            continue;
-        }
-        for (int i = 0; i < mesh.numTriangles; i++) {
-            uint triIndex = mesh.firstTriangleIndex + i;
-            Triangle tri = triangles[triIndex];
-            HitInfo hitInfo = intersectRayTriangle(ray, tri);
 
-            if(hitInfo.didHit && hitInfo.distance < closestHit.distance) {
-                closestHit = hitInfo;
-                Material material;
-                material.color = mesh.color_smoothness.xyz;
-                material.emissiveColor = mesh.emissionColor_emissionStrength.xyz;
-                material.emissiveStrength = mesh.emissionColor_emissionStrength.w;
-                material.smoothness = mesh.color_smoothness.w;
-                closestHit.material = material;
-            }
+        HitInfo hitInfo = intersectRayTriangleBVH(ray);
+
+        if(hitInfo.didHit && hitInfo.distance < closestHit.distance) {
+            closestHit = hitInfo;
+            Material material;
+            material.color = mesh.color_smoothness.xyz;
+            material.emissiveColor = mesh.emissionColor_emissionStrength.xyz;
+            material.emissiveStrength = mesh.emissionColor_emissionStrength.w;
+            material.smoothness = mesh.color_smoothness.w;
+            closestHit.material = material;
         }
     }
     return closestHit;
