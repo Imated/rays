@@ -98,7 +98,7 @@ int main() {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, nodeSSBO);
 
     defaultShader->useCompute();
-    defaultShader->setInt("maxBounces", 4, true);
+    defaultShader->setInt("maxBounces", 48, true);
     defaultShader->setInt("samplesPerPixel", 2, true);
 
     glfwSwapInterval(0);
