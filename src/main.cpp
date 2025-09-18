@@ -30,6 +30,8 @@ raytracer::Camera camera = raytracer::Camera(10, 0.08f);
 
 void resetAccumulation() {
     frameCount = 0;
+    const float zero[4] = {0,0,0,0};
+    glClearTexImage(accumTexture, 0, GL_RGBA, GL_FLOAT, zero);
 }
 
 static void windowSizeCallback(GLFWwindow *window, int width, int height) {
@@ -38,7 +40,7 @@ static void windowSizeCallback(GLFWwindow *window, int width, int height) {
     Window::params.height = height;
     glGenTextures(1, &accumTexture);
     glBindTexture(GL_TEXTURE_2D, accumTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -56,7 +58,7 @@ std::vector<Sphere> spheres = {
 std::vector<Triangle> triangles;
 std::vector<MeshInfo> meshes;
 std::vector<raytracer::BVHNode> nodes;
-raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb", vec3(0, 2, -4), vec3(45, 0, 0), vec3(1));
+raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb", vec3(0, 2, -4), vec3(-45, 0, 0), vec3(1));
 
 double deltaTime = 0.0f;
 std::chrono::time_point<std::chrono::system_clock> startFrame;
@@ -111,7 +113,7 @@ int main() {
 
         // accumulate pass
         defaultShader->useCompute();
-        glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
+        glBindImageTexture(0, accumTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meshSSBO);
@@ -125,7 +127,7 @@ int main() {
         defaultShader->setFloat("uFocalLength",
                                 static_cast<float>(tan(45.0 / 180.0 * std::numbers::pi)) * 0.5f * static_cast<float>(
                                     Window::params.height), true);
-        defaultShader->setBool("shouldAccumulate", !camera.hasMoved, true);
+        //defaultShader->setBool("shouldAccumulate", !camera.hasMoved, true);
 
         GLuint gx = (Window::params.width + 7u) / 8u;
         GLuint gy = (Window::params.height + 7u) / 8u;
@@ -195,7 +197,7 @@ void renderQuad() {
 
         glGenTextures(1, &accumTexture);
         glBindTexture(GL_TEXTURE_2D, accumTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

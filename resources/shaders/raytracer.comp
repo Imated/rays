@@ -2,7 +2,7 @@
 
 layout(local_size_x=8, local_size_y=8) in;
 
-layout(rgba16f, binding = 0) uniform image2D accumImage;
+layout(rgba32f, binding = 0) uniform image2D accumImage;
 
 struct Material {
     vec3 color;
@@ -224,17 +224,15 @@ HitInfo calculateRayIntersection(Ray ray) {
         MeshInfo mesh = meshes[meshIndex];
 
         Ray localRay;
-        localRay.origin = ray.origin - mesh.pos.xyz;
-        localRay.origin = mat3(mesh.rotation) * localRay.origin;
-        localRay.direction = mat3(mesh.rotation) * ray.direction;
+        localRay.origin = mat3(mesh.invRotation) * (ray.origin - mesh.pos.xyz);
+        localRay.direction = normalize(mat3(mesh.invRotation) * ray.direction);
 
         HitInfo hitInfo = intersectRayTriangleBVH(localRay);
 
         if(hitInfo.didHit && hitInfo.distance < closestHit.distance) {
             closestHit = hitInfo;
-            closestHit.hitPos = mat3(mesh.invRotation) * closestHit.hitPos;
-            closestHit.hitPos += mesh.pos.xyz;
-            closestHit.normal = normalize(mat3(mesh.invRotation) * closestHit.normal);
+            closestHit.hitPos = mat3(mesh.rotation) * closestHit.hitPos + mesh.pos.xyz;
+            closestHit.normal = normalize(mat3(mesh.rotation) * closestHit.normal);
 
             Material material;
             material.color = mesh.color_smoothness.xyz;
@@ -267,6 +265,7 @@ vec3 traceRay(Ray ray, inout uint rngState) {
             vec3 emittedLight = material.emissiveColor * material.emissiveStrength;
             inLight += emittedLight * rayColor;
             rayColor *= material.color;
+            //return info.normal * 0.5 + 0.5;
         }
         else
         {
@@ -293,7 +292,7 @@ void main() {
     curr /= float(samplesPerPixel);
 
     vec4 prev = imageLoad(accumImage, pixelCoord);
-    float alpha = (shouldAccumulate != false) ? (1.0 / float(renderedFrames + 1u)) : 1.0;
+    float alpha = 1.0 / float(renderedFrames + 1u);
     vec3 outCol = mix(prev.rgb, curr, alpha);
     imageStore(accumImage, pixelCoord, vec4(outCol, 1.0));
 }
