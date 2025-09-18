@@ -21,8 +21,9 @@ namespace raytracer {
                 aiProcess_Triangulate |
                 aiProcess_GenNormals |
                 aiProcess_JoinIdenticalVertices |
-                aiProcess_ImproveCacheLocality;
-
+                aiProcess_ImproveCacheLocality |
+                aiProcess_FlipWindingOrder |
+                aiProcess_FixInfacingNormals;
 
         const aiScene *scene = importer.ReadFile(filename, flags);
         if (!scene) {

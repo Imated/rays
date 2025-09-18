@@ -115,27 +115,42 @@ bool intersectRayBoundingBox(Ray ray, vec3 boundsMin, vec3 boundsMax, float dst)
     return tNear <= tFar && (tNear < dst);
 }
 
-HitInfo intersectRayTriangle(Ray ray, Triangle tri) {
-    vec3 edgeAB = tri.posB.xyz - tri.posA.xyz;
-    vec3 edgeAC = tri.posC.xyz - tri.posA.xyz;
-    vec3 normalVector = cross(edgeAB, edgeAC);
-    vec3 ao = ray.origin.xyz - tri.posA.xyz;
-    vec3 dao = cross(ao, ray.direction);
+bool intersectRayTriangle(in Ray ray, in Triangle tri, float tMin, out HitInfo hitInfo)
+{
+    vec3 e1 = tri.posB.xyz - tri.posA.xyz;
+    vec3 e2 = tri.posC.xyz - tri.posA.xyz;
+    vec3 p  = cross(ray.direction, e2);
+    float det = dot(e1, p);
 
-    float determinant = -dot(ray.direction, normalVector);
-    float inverseDeterminant = 1 / determinant;
+    hitInfo.didHit = false;
 
-    float dst = dot(ao, normalVector) * inverseDeterminant;
-    float u = dot(edgeAC, dao) * inverseDeterminant;
-    float v = -dot(edgeAB, dao) * inverseDeterminant;
-    float w = 1 - u - v;
+    // parallel / nearly degenerate
+    if (abs(det) < 1e-8)
+        return false;
 
-    HitInfo hitInfo;
-    hitInfo.didHit = determinant >= 1e-6 && dst >= 0 && u >= 0 && v >= 0 && w >= 0;
-    hitInfo.hitPos = ray.origin + ray.direction * dst;
-    hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
+    float invDet = 1.0 / det;
+    vec3  t = ray.origin - tri.posA.xyz;
+    float u = dot(t, p) * invDet;
+    if (u < 0.0 || u > 1.0)
+        return false;
+
+    vec3  q = cross(t, e1);
+    float v = dot(ray.direction, q) * invDet;
+    if (v < 0.0 || u + v > 1.0)
+        return false;
+
+    float dst = dot(e2, q) * invDet;
+    if (dst <= tMin)
+        return false;
+
+    float w = 1.0 - u - v;
+
+    hitInfo.didHit   = true;
     hitInfo.distance = dst;
-    return hitInfo;
+    hitInfo.hitPos = ray.origin + dst * ray.direction;
+    hitInfo.normal = normalize(tri.normalA.xyz * w + tri.normalB.xyz * u + tri.normalC.xyz * v);
+
+    return true;
 }
 
 HitInfo intersectRayTriangleBVH(Ray ray) {
@@ -161,11 +176,13 @@ HitInfo intersectRayTriangleBVH(Ray ray) {
         uint count = n.triIndex_triCount_childIndex.y;
 
         if (count > 0u) {
+            float tMin = 1e-4;
             for (uint i = 0u; i < count; ++i) {
                 Triangle tri = triangles[first + i];
-                HitInfo h = intersectRayTriangle(ray, tri);
-                if (h.didHit && h.distance < best.distance)
+                HitInfo h;
+                if (intersectRayTriangle(ray, tri, tMin, h) && h.distance < best.distance) {
                     best = h;
+                }
             }
         } else {
             uint left = n.triIndex_triCount_childIndex.z;
@@ -257,7 +274,7 @@ vec3 traceRay(Ray ray, inout uint rngState) {
     for(int i = 0; i <= maxBounces; i++) {
         HitInfo info = calculateRayIntersection(ray);
         if(info.didHit) {
-            ray.origin = info.hitPos + info.normal * 1e-4;
+            ray.origin = info.hitPos + 1e-5 * info.normal;
             Material material = info.material;
             vec3 diffuseDir = normalize(info.normal + randomDirection(rngState));
             vec3 specularDir = reflect(normalize(ray.direction), info.normal);
