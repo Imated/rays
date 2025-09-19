@@ -37,8 +37,6 @@ struct TriangleHitInfo
 struct MeshInfo {
     uint firstTriangleIndex;
     uint numTriangles;
-    vec4 boundingBoxMin;
-    vec4 boundingBoxMax;
     vec4 color_smoothness;
     vec4 emissionColor_emissionStrength;
     vec4 pos;

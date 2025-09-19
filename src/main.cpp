@@ -58,7 +58,11 @@ std::vector<Sphere> spheres = {
 std::vector<Triangle> triangles;
 std::vector<MeshInfo> meshes;
 std::vector<raytracer::BVHNode> nodes;
-raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb", vec3(0, 2, -4), vec3(-45, 0, 0), vec3(1));
+raytracer::Material material {
+    vec3(1),
+    0,
+};
+raytracer::Model suzanne = raytracer::Model("resources/suzanne.glb", raytracer::Transform { vec3(0, 2, -4), vec3(-45, 0, 0), vec3(1) }, material);
 
 double deltaTime = 0.0f;
 std::chrono::time_point<std::chrono::system_clock> startFrame;

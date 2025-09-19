@@ -27,8 +27,6 @@ namespace raytracer {
         uint32_t numTriangles;
         uint32_t _pad0;
         uint32_t _pad1;
-        vec4 boundingBoxMin;
-        vec4 boundingBoxMax;
         vec4 color_smoothness;
         vec4 emissiveColor_strength;
         vec4 pos;
@@ -37,9 +35,22 @@ namespace raytracer {
         vec4 scale;
     };
 
+    struct Material {
+        vec3 color;
+        float smoothness;
+        vec3 emissiveColor;
+        float emissiveStrength;
+    };
+
+    struct Transform {
+        vec3 pos;
+        vec3 rotation;
+        vec3 scale;
+    };
+
     class Model {
     public:
-        explicit Model(const char* filename, vec3 pos, vec3 rotation, vec3 scale);
+        explicit Model(const char* filename, Transform transform, Material material);
         ~Model();
 
         void addTriangles(std::vector<Triangle>& triangles) const;
